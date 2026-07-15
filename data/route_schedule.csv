@@ -1,0 +1,9 @@
+route_id,route_name,scheduled_arrival_time,terminal
+R101,Whitefield - Majestic,08:15,Majestic Bus Terminal
+R102,Electronic City - Shivajinagar,08:25,Shivajinagar Terminal
+R103,Hebbal - Silk Board,08:05,Silk Board Terminal
+R104,KR Puram - Yeshwanthpur,08:40,Yeshwanthpur Terminal
+R105,Banashankari - Hebbal,08:10,Hebbal Terminal
+R106,Jayanagar - Majestic,08:30,Majestic Bus Terminal
+R107,Marathahalli - Majestic,08:20,Majestic Bus Terminal
+R108,BTM Layout - Kengeri,08:50,Kengeri Terminal
