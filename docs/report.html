@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; color: #1c2b27;
+         font-size: 10.5pt; line-height: 1.5; }
+  h1 { color: #1b5e20; font-size: 22pt; margin: 0 0 2pt 0; }
+  h2 { color: #2e7d32; font-size: 15pt; border-bottom: 2px solid #2e7d32;
+       padding-bottom: 3px; margin-top: 26px; }
+  h3 { color: #2e7d32; font-size: 12.5pt; margin-top: 18px; }
+  h4 { color: #33691e; font-size: 11pt; margin-top: 14px; margin-bottom: 4px; }
+  .subtitle { color: #555; font-size: 11pt; margin: 0 0 4px 0; }
+  .meta { color: #777; font-size: 9pt; margin-bottom: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 9.3pt; }
+  th { background: #1b5e20; color: #fff; text-align: left; padding: 6px 8px; }
+  td { border: 1px solid #cfe0d4; padding: 6px 8px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f1f8f2; }
+  code { background: #eef3ef; padding: 1px 4px; border-radius: 3px; font-size: 9pt;
+         font-family: "SF Mono", Consolas, monospace; }
+  .pill { display: inline-block; background: #2e7d32; color: #fff; border-radius: 10px;
+          padding: 1px 9px; font-size: 8.5pt; }
+  .note { background: #f1f8f2; border-left: 4px solid #2e7d32; padding: 8px 12px;
+          margin: 10px 0; font-size: 9.6pt; }
+  .pagebreak { page-break-before: always; }
+  .diagram { text-align: center; margin: 8px 0; }
+  .diagram svg { width: 100%; height: auto; max-height: 560px; }
+  ul, ol { margin: 6px 0 6px 0; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  .check li { list-style: none; margin-left: -16px; }
+  .small { font-size: 9pt; color: #555; }
+  .conclusion { background: #e8f5e9; border: 1px solid #2e7d32; border-radius: 6px;
+                padding: 10px 14px; margin: 10px 0; }
+</style>
+</head>
+<body>
+
+<h1>UrbanPulse</h1>
+<p class="subtitle">Real-Time Urban Operations Intelligence &amp; Smart Traffic Management Platform</p>
+<p class="meta">City: MetroConnect (4.2M population) &nbsp;|&nbsp; Smart Cities Mission &nbsp;|&nbsp; Open-source-first mandate<br>
+Technical Report — Tasks A, B &amp; C &nbsp;|&nbsp; Lead Streaming Architect submission</p>
+
+<div class="note">
+<b>What this report covers.</b> Task A — system design (architecture diagram, Lambda vs
+Kappa evaluation, readiness checklist). Task B — the Kafka ingestion layer (cluster,
+producers, priority consumers, enrichment, dead-letter queue). Task C — the processing
+layer (Flink incident detection, Spark ward analytics, and the engine comparison). All
+referenced code is in the accompanying Git repository; file paths are given throughout.
+</div>
+
+<!-- ================= TASK A ================= -->
+<h2>Task A — Architecture &amp; Design</h2>
+
+<h3>A.1 Labelled Architecture Diagram</h3>
+<p>UrbanPulse is a five-layer <b>Lambda</b> pipeline: four city data sources feed a
+3-broker Kafka ingestion layer; a Flink speed layer handles sub-2-minute incident
+detection while a Spark batch layer produces auditable aggregates; results land in a
+purpose-fit storage layer and are surfaced through dashboards, advisory APIs, and the
+signal-control interface.</p>
+
+<div class="diagram">
+__ARCHITECTURE_SVG__
+</div>
+
+<h4>Storage technology choice per data class</h4>
+<table>
+<tr><th>Data class</th><th>Technology</th><th>Why this choice</th></tr>
+<tr><td>Time-series sensor data (AQI, signals, meters)</td><td><b>TimescaleDB</b> (PostgreSQL extension)</td><td>Native time partitioning &amp; continuous aggregates; standard SQL for BI tools; open-source and self-hosted on city servers.</td></tr>
+<tr><td>Geospatial bus positions</td><td><b>PostgreSQL + PostGIS</b></td><td>First-class geospatial types and distance queries ("buses within 200 m") needed for ETA and bunching; open-source.</td></tr>
+<tr><td>Historical AQI records</td><td><b>Parquet on MinIO</b> (S3-compatible)</td><td>Columnar, compressed, cheap long-term retention for 90-day+ pollution trends; queryable by Spark; self-hostable for sovereignty.</td></tr>
+<tr><td>Councillor report aggregates</td><td><b>PostgreSQL</b></td><td>Small, relational, audited summary tables; easily exported to PDF/Excel for state-government submission.</td></tr>
+</table>
+<p class="small">For the runnable single-laptop demo, the repository uses lightweight
+equivalents — partitioned Parquet files and Kafka topics — so a beginner can run
+everything without standing up four databases. The production design specifies the
+technologies above.</p>
+
+<div class="pagebreak"></div>
+<h3>A.2 Lambda vs Kappa — Evaluation Matrix</h3>
+<p>Each cell is grounded in UrbanPulse's actual requirements.</p>
+<table>
+<tr><th style="width:18%">Criterion</th><th>Lambda</th><th>Kappa</th></tr>
+<tr><td><b>Latency</b></td><td>Flink speed layer already delivers sub-2-min AQI alerts and 90-s signal adaptation; batch latency applies only to reports, which tolerate it. Meets every SLA.</td><td>Single streaming path also meets the sub-2-min SLAs. No latency disadvantage for live use cases.</td></tr>
+<tr><td><b>Fault Tolerance</b></td><td>Two independent paths: a Spark batch failure never blocks real-time incident detection, and vice-versa. Reporting failure cannot silence emergency alerts.</td><td>One pipeline is a single point of failure for both alerts and reports; a bad deploy can take down emergency detection and reporting together.</td></tr>
+<tr><td><b>Operational Complexity</b></td><td>Higher: two engines (Flink + Spark), two codebases and failure modes — the real cost of Lambda for a small city team.</td><td>Lower: one engine, one mental model, one deployment. Attractive for a lean ops team.</td></tr>
+<tr><td><b>Reprocessing Capability</b></td><td>Batch layer is built for it: re-run a month of Parquet to correct a councillor report after a late sensor recalibration. Natural fit.</td><td>Reprocessing = replaying Kafka. The 365-day meter audit would require keeping a year of raw events in Kafka purely to reprocess — expensive and heavy.</td></tr>
+<tr><td><b>Cost</b></td><td>Two clusters to run, but batch can use cheap schedulable capacity and raw history lives in cheap Parquet/object storage, not Kafka.</td><td>Must retain very long Kafka history (365-day audit) to preserve reprocessing — high broker-storage cost that dominates at ~3,900 events/s aggregate.</td></tr>
+<tr><td><b>Compliance with Govt Reporting Mandate</b></td><td>Deterministic, re-runnable, auditable aggregates from immutable Parquet — exactly what state-government submission and audit require. Strong fit.</td><td>Figures derived from a replayed stream are harder to reproduce identically months later for audit. Weaker compliance story.</td></tr>
+</table>
+
+<div class="conclusion">
+<b>Architecture choice: Lambda.</b> UrbanPulse has a genuine dual mandate — hard
+real-time response <i>and</i> long-horizon auditable reporting (including a 365-day
+smart-meter regulatory audit). Kappa wins on simplicity but loses on the two
+requirements that matter most here: cheap, auditable, long-horizon reprocessing for
+compliance, and failure isolation so a reporting bug can never silence an AQI emergency.
+The 365-day audit retention alone makes Kappa's "replay from Kafka" model prohibitively
+expensive. We choose <b>Lambda</b> — Flink speed layer + Spark batch layer with immutable
+Parquet as the historical system of record — accepting higher operational complexity as
+the price of regulatory auditability and fault isolation, and mitigating it by keeping
+both layers in one Kafka-centric open-source toolchain.
+</div>
+
+<div class="pagebreak"></div>
+<h3>A.3 Architecture Readiness Checklist</h3>
+<p>16 items across the four mandated themes. A deployment is "ready" only when all are met.</p>
+
+<h4>Data Sovereignty</h4>
+<ol>
+<li>All Kafka brokers, processing engines, and databases run on city-owned servers in the municipal data centre; no managed cloud service stores citizen data.</li>
+<li>No data egress to external networks; MinIO and databases bound to the internal VLAN with egress firewall rules denying outbound traffic.</li>
+<li>Backups and Parquet snapshots written only to city-controlled storage; off-site DR replica is a second city/state facility, not a public cloud.</li>
+<li>Access to raw streams is role-restricted; an audit log records who read or exported citizen-linked (meter/ward) data.</li>
+</ol>
+<h4>Open-Source Mandate</h4>
+<ol start="5">
+<li>Every core component is OSS with an Apache-style licence: Kafka, Zookeeper, Flink, Spark, PostgreSQL/PostGIS, TimescaleDB, MinIO, Parquet, Flask.</li>
+<li>No proprietary connectors or paid enterprise add-ons on the critical path; any vendor tooling is optional and replaceable.</li>
+<li>Build/run is reproducible from pinned versions (<code>requirements.txt</code>, <code>docker-compose.yml</code>); no closed binaries required to operate.</li>
+</ol>
+<h4>Disaster Recovery — RPO &lt; 15 min, RTO &lt; 30 min</h4>
+<ol start="8">
+<li>Kafka topics use replication factor 3 so a single broker loss causes zero data loss and no downtime.</li>
+<li>Continuous/near-continuous replication or =&lt;15-min snapshotting of Parquet and databases to the DR site guarantees <b>RPO &lt; 15 min</b>.</li>
+<li>A documented, rehearsed failover runbook (promote DR brokers, repoint clients, restart Flink/Spark from last checkpoint) is provable to complete in <b>under 30 min (RTO)</b>.</li>
+<li>Flink and Spark run with checkpointing to durable storage so stream jobs resume from the last consistent state after failover.</li>
+<li>DR drills are scheduled (e.g. quarterly) and measured RPO/RTO are recorded against the targets.</li>
+</ol>
+<h4>Accessibility for Non-Technical Ward Officers</h4>
+<ol start="13">
+<li>Dashboards present plain-language status ("AQI: Hazardous in Zone 3") with colour coding, not raw JSON or query consoles.</li>
+<li>Advisory and incident views work on a standard browser/mobile with no install and SSO login; no command line is ever required of a ward officer.</li>
+<li>Dashboards meet basic accessibility: legible fonts, colour-blind-safe palette, regional-language labels.</li>
+<li>A one-page "what each alert means and who to call" guide ships with the dashboard so non-technical staff can act without engineering help.</li>
+</ol>
+
+<!-- ================= TASK B ================= -->
+<div class="pagebreak"></div>
+<h2>Task B — Kafka Ingestion Layer</h2>
+
+<h3>B.1 3-Broker Cluster, Partitions &amp; Retention</h3>
+<p>The cluster is defined in <code>docker-compose.yml</code>: one Zookeeper plus three
+Confluent brokers (<code>kafka1/2/3</code>) with replication factor 3, reachable on the
+host at <code>localhost:9092 / 9093 / 9094</code>, plus a Kafka-UI on port 8080. Topics
+are created idempotently by <code>setup/create_topics.py</code>.</p>
+<table>
+<tr><th>Topic</th><th>Partitions</th><th>Retention</th><th>Justification</th></tr>
+<tr><td><code>urbanpulse.bus_gps</code></td><td>6</td><td>24 hours</td><td>Highest-volume stream (~2,400/s); 6 partitions spread load and allow parallel consumers. 24 h retention supports accident-replay investigation, per the brief.</td></tr>
+<tr><td><code>urbanpulse.traffic_signals</code></td><td>3</td><td>7 days</td><td>3 partitions map one-to-one to the 3-consumer STANDARD analytics group. A week covers short-term congestion analysis.</td></tr>
+<tr><td><code>urbanpulse.air_quality</code></td><td>2</td><td>90 days</td><td>Low volume (~60/s) needs little parallelism. 90-day retention enables pollution-trend analysis, per the brief.</td></tr>
+<tr><td><code>urbanpulse.smart_meters</code></td><td>4</td><td>365 days</td><td>Keyed by ward for ordered per-ward aggregation. 365-day retention meets the regulatory energy-audit requirement.</td></tr>
+</table>
+<p class="small">Derived topics (<code>bus_gps_enriched</code>, <code>incidents</code>,
+<code>ward_energy_summary</code>, <code>health_advisories</code>, <code>dlq</code>) use
+14–90 day retention appropriate to their downstream use.</p>
+
+<h3>B.2 Producers (bus_gps &amp; air_quality)</h3>
+<ul>
+<li><b><code>producers/bus_gps_producer.py</code></b> — keys every message by
+<code>route_id</code> so all positions for a route land on one partition and stay
+<b>ordered</b>. It runs 8 routes × 3 buses and deliberately places two Route-R101 buses
+~55 m apart so the Task C bunching detector has something to fire on.</li>
+<li><b><code>producers/air_quality_producer.py</code></b> — implements
+<b>at-least-once</b> semantics: <code>acks=all</code> plus a synchronous
+<code>future.get()</code> confirmation and a manual retry loop
+(<code>MAX_SEND_RETRIES=3</code>) for the timeouts the brief describes. It injects the
+required <b>5% null-AQI</b> failures, which it logs and still forwards so the DLQ stage
+can catch them.</li>
+</ul>
+<div class="note"><b>Why at-least-once here?</b> A missed AQI reading could mean a missed
+public-health emergency, so we prefer to risk a duplicate (cheap to de-duplicate
+downstream) over a lost reading. Ordering matters for bus GPS, hence the
+<code>route_id</code> key; throughput matters for AQI, hence retry-with-ack.</div>
+
+<h3>B.3 Priority Consumer Architecture</h3>
+<p>Two consumer groups read the same <code>traffic_signals</code> topic:</p>
+<ul>
+<li><b>HIGH_PRIORITY</b> (<code>consumers/priority_consumer_high.py</code>) — a single
+consumer reading <i>all</i> partitions, feeding the real-time signal-control system.</li>
+<li><b>STANDARD_PRIORITY</b> (<code>consumers/priority_consumer_standard.py</code>, run
+3× ) — three consumers sharing the partitions for analytics. A <code>--slow</code> flag
+adds 0.4 s/message to simulate a processing slowdown.</li>
+</ul>
+<p>Because the two groups have independent offsets, slowing STANDARD does not affect
+HIGH. <code>consumers/lag_monitor.py</code> proves this by printing each group's lag from
+committed offsets vs end offsets: HIGH stays at near-zero lag while STANDARD's lag grows
+under load.</p>
+
+<h3>B.4 Real-Time Enrichment (Stream–Table Join)</h3>
+<p><code>enrichment/bus_gps_enrichment.py</code> joins the live bus_gps stream with the
+static <code>data/route_schedule.csv</code> to add <code>scheduled_arrival_time</code>,
+<code>route_name</code>, and <code>terminal</code>, writing the result to
+<code>urbanpulse.bus_gps_enriched</code> — the foundation of the ETA service.</p>
+<div class="note"><b>Note on Kafka Streams.</b> The Kafka Streams API is JVM-only and has
+no Python binding. To keep the project beginner-friendly and entirely in Python, this
+job implements the same <b>stream–KTable join pattern</b> faithfully: the CSV is loaded
+into an in-memory keyed table (the "KTable"), and each incoming GPS event is enriched by
+key lookup and re-emitted. The semantics match; only the runtime differs.</div>
+
+<h3>B.5 Dead-Letter Queue (DLQ)</h3>
+<p><code>dlq/dlq_validator.py</code> validates air_quality and bus_gps events and routes
+failures to <code>urbanpulse.dlq</code> with an <code>error_reason</code> field:</p>
+<ul>
+<li><code>NULL_AQI</code> — missing AQI value</li>
+<li><code>AQI_OUT_OF_RANGE</code> — AQI outside 0–500</li>
+<li><code>NULL_GPS</code> / <code>IMPOSSIBLE_GPS</code> — missing or out-of-bounds lat/lon</li>
+</ul>
+<p><code>dlq/dlq_report.py</code> consumes the DLQ over a configurable window (default 5
+minutes), tallies the error-type distribution with a counter, prints it, and saves
+<code>output/dlq_report.txt</code> — the required 5-minute DLQ report.</p>
+
+<!-- ================= TASK C ================= -->
+<div class="pagebreak"></div>
+<h2>Task C — Processing Layer</h2>
+
+<h3>C.1 Flink Incident Detection (PyFlink DataStream)</h3>
+<p>Three detectors use keyed state and event-time watermarks and emit to
+<code>urbanpulse.incidents</code>. Shared helpers (Kafka connector JAR discovery, a
+haversine distance function, timestamp parsing) live in
+<code>flink/_flink_common.py</code>.</p>
+<table>
+<tr><th>Detector</th><th>File</th><th>Logic</th></tr>
+<tr><td><b>(a) AQI Emergency</b></td><td><code>flink/aqi_emergency.py</code></td><td>Filters air_quality for <code>AQI &gt; 300</code> and emits an alert within the 2-minute SLA using an event-time source.</td></tr>
+<tr><td><b>(b) Traffic Gridlock</b></td><td><code>flink/traffic_gridlock.py</code></td><td>Keyed by <code>junction_id</code>; a <code>KeyedProcessFunction</code> with <code>ValueState</code> counts consecutive cycles where <code>avg_wait_sec &gt; 180</code> and fires after 3 in a row, reporting junction and zone.</td></tr>
+<tr><td><b>(c) Bus Bunching</b></td><td><code>flink/bus_bunching.py</code></td><td>Keyed by <code>route_id</code>; <code>MapState</code> tracks per-bus positions and pair timers, firing when two buses stay within 200 m (haversine) for &gt;5 min, with a cooldown to avoid alert spam.</td></tr>
+</table>
+
+<h3>C.2 Spark Structured Streaming (Ward Analytics)</h3>
+<ul>
+<li><b><code>spark/ward_energy_summary.py</code></b> — reads
+<code>urbanpulse.smart_meters</code>, applies a 5-minute watermark and a <b>15-minute
+tumbling window</b> per <code>ward_id</code>, and computes
+<code>total_kwh_consumed</code>, <code>avg_power_factor</code>, and
+<code>peak_voltage</code>. A <code>foreachBatch</code> sink writes simultaneously to the
+<code>urbanpulse.ward_energy_summary</code> topic and to Parquet
+<b>partitioned by <code>ward_id</code> and <code>date</code></b> for historical trend
+analysis.</li>
+<li><b><code>spark/aqi_health_advisory.py</code></b> — a Streaming SQL query that computes
+a <b>10-minute rolling average AQI per zone</b>, joins the static
+<code>data/zone_profile.csv</code> (zone name, population, schools), filters
+<code>rolling_avg_aqi &gt; 150</code>, and writes enriched advisories to
+<code>urbanpulse.health_advisories</code> using <b>Update output mode</b>, exactly as
+specified.</li>
+</ul>
+
+<h3>C.3 Flink vs Spark — Which Engine for Which Job</h3>
+<p>The two jobs above need different engines, and the choice falls out of four factors.</p>
+<table>
+<tr><th style="width:20%">Factor</th><th>Bus Bunching → <b>Flink</b></th><th>Ward Energy → <b>Spark</b></th></tr>
+<tr><td><b>State size</b></td><td>Small but fine-grained: per-bus positions and per-pair timers, updated on every event. Flink keyed state fits exactly.</td><td>Bounded aggregates per ward per open window, updated once per micro-batch. Comfortable for Spark.</td></tr>
+<tr><td><b>Latency requirement</b></td><td>Real-time, event-at-a-time; must fire the moment the 5-min threshold is crossed, correct under out-of-order GPS via watermarks.</td><td>Minute-scale; feeds councillor dashboards/reports. Micro-batches every few seconds are ample.</td></tr>
+<tr><td><b>Recovery time objective</b></td><td>Fast: resumes per-route timers from keyed checkpoints rather than replaying from zero.</td><td>Relaxed: brief dashboard lag is fine, and reports can be recomputed deterministically from Parquet.</td></tr>
+<tr><td><b>Operational complexity</b></td><td>Higher to learn, but the only engine that expresses "same key, sustained spatial condition, over event time" cleanly.</td><td>Lower: declarative windowed SQL with a <code>foreachBatch</code> sink; reuses existing analytics skills.</td></tr>
+</table>
+<div class="conclusion"><b>Conclusion.</b> Bus bunching belongs on <b>Flink</b> — low-latency,
+event-time, fine-grained per-key state with timers. Ward energy aggregation belongs on
+<b>Spark</b> — windowed batch aggregation over relaxed latency with first-class
+partitioned Parquet for auditable reprocessing. This split is exactly why UrbanPulse
+adopts the Lambda architecture chosen in Task A.</div>
+
+<div class="note small"><b>On testing.</b> All 22 Python modules pass
+<code>python -m py_compile</code>. The pipelines are designed to run on the beginner
+setup in <code>EXECUTION_GUIDE.md</code> against the Dockerised Kafka cluster; live
+end-to-end runs require Docker, a JDK, and the Flink/Spark Kafka connector JARs as that
+guide describes.</div>
+
+</body>
+</html>

@@ -1,0 +1,182 @@
+<svg viewBox="0 0 1480 1000" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#37474f"/>
+    </marker>
+    <style>
+      .layer  { fill:#f1f8f4; stroke:#2e7d32; stroke-width:2; rx:10; }
+      .layerlbl { fill:#1b5e20; font-size:20px; font-weight:bold; }
+      .box    { fill:#ffffff; stroke:#37474f; stroke-width:1.5; rx:8; }
+      .src    { fill:#e8f5e9; stroke:#2e7d32; stroke-width:1.5; rx:8; }
+      .kafka  { fill:#fff3e0; stroke:#ef6c00; stroke-width:1.5; rx:8; }
+      .rt     { fill:#e3f2fd; stroke:#1565c0; stroke-width:1.5; rx:8; }
+      .batch  { fill:#f3e5f5; stroke:#6a1b9a; stroke-width:1.5; rx:8; }
+      .store  { fill:#fffde7; stroke:#f9a825; stroke-width:1.5; rx:8; }
+      .serve  { fill:#e0f2f1; stroke:#00695c; stroke-width:1.5; rx:8; }
+      .t      { font-size:14px; fill:#212121; }
+      .tb     { font-size:15px; fill:#212121; font-weight:bold; }
+      .sm     { font-size:11px; fill:#546e7a; }
+      .ln     { stroke:#37474f; stroke-width:1.6; fill:none; }
+    </style>
+  </defs>
+
+  <text x="40" y="40" font-size="28" font-weight="bold" fill="#1b5e20">UrbanPulse — Streaming Intelligence Architecture</text>
+  <text x="40" y="66" font-size="14" fill="#546e7a">Lambda architecture: one ingestion bus feeding parallel real-time (speed) and batch layers, unified at the serving layer.</text>
+
+  <!-- ================= DATA SOURCES ================= -->
+  <rect class="layer" x="30" y="90" width="250" height="780"/>
+  <text class="layerlbl" x="55" y="118">1. Data Sources</text>
+  <rect class="src" x="55" y="140" width="200" height="80"/>
+  <text class="tb" x="70" y="168">12,000 Buses (GPS)</text>
+  <text class="sm" x="70" y="188">bus_id, route_id, lat, lon,</text>
+  <text class="sm" x="70" y="204">speed, occupancy · ~2,400/s</text>
+
+  <rect class="src" x="55" y="245" width="200" height="80"/>
+  <text class="tb" x="70" y="273">3,800 Signal Sensors</text>
+  <text class="sm" x="70" y="293">junction_id, zone, vehicles,</text>
+  <text class="sm" x="70" y="309">avg_wait, phase · ~380/s</text>
+
+  <rect class="src" x="55" y="350" width="200" height="80"/>
+  <text class="tb" x="70" y="378">600 Air Quality Monitors</text>
+  <text class="sm" x="70" y="398">sensor_id, zone, pm25, pm10,</text>
+  <text class="sm" x="70" y="414">no2, aqi · ~60/s</text>
+
+  <rect class="src" x="55" y="455" width="200" height="80"/>
+  <text class="tb" x="70" y="483">1.1M Smart Meters</text>
+  <text class="sm" x="70" y="503">meter_id, ward_id, kwh,</text>
+  <text class="sm" x="70" y="519">voltage, pf · ~1,100/s</text>
+
+  <!-- ================= KAFKA INGESTION ================= -->
+  <rect class="layer" x="310" y="90" width="250" height="780"/>
+  <text class="layerlbl" x="335" y="118">2. Ingestion (Kafka)</text>
+  <rect class="kafka" x="335" y="140" width="200" height="60"/>
+  <text class="tb" x="350" y="166">Zookeeper</text>
+  <text class="sm" x="350" y="186">cluster coordination</text>
+
+  <rect class="kafka" x="335" y="215" width="200" height="245"/>
+  <text class="tb" x="350" y="240">3-Broker Kafka Cluster</text>
+  <text class="sm" x="350" y="262">replication factor = 3</text>
+  <text class="t" x="350" y="290">• bus_gps  (6 parts, 24h)</text>
+  <text class="t" x="350" y="314">• traffic_signals (3p, 7d)</text>
+  <text class="t" x="350" y="338">• air_quality (2p, 90d)</text>
+  <text class="t" x="350" y="362">• smart_meters (4p, 365d)</text>
+  <text class="sm" x="350" y="392">+ derived topics:</text>
+  <text class="sm" x="350" y="412">incidents, advisories,</text>
+  <text class="sm" x="350" y="430">ward_energy, dlq</text>
+
+  <rect class="kafka" x="335" y="475" width="200" height="70"/>
+  <text class="tb" x="350" y="500">DLQ pattern</text>
+  <text class="sm" x="350" y="520">validation failures →</text>
+  <text class="sm" x="350" y="536">urbanpulse.dlq + reason</text>
+
+  <!-- ================= PROCESSING ================= -->
+  <rect class="layer" x="590" y="90" width="300" height="780"/>
+  <text class="layerlbl" x="615" y="118">3. Processing</text>
+
+  <rect class="rt" x="615" y="140" width="250" height="300"/>
+  <text class="tb" x="630" y="166">SPEED LAYER — Apache Flink</text>
+  <text class="sm" x="630" y="186">event-time, keyed state, &lt;2 min</text>
+  <text class="t" x="630" y="220">• Stream enrichment (KTable join)</text>
+  <text class="sm" x="630" y="238">  bus_gps ⋈ route_schedule → ETA</text>
+  <text class="t" x="630" y="268">• AQI Emergency (AQI &gt; 300)</text>
+  <text class="t" x="630" y="296">• Traffic Gridlock</text>
+  <text class="sm" x="630" y="314">  &gt;180s wait, 3 cycles, per junction</text>
+  <text class="t" x="630" y="344">• Bus Bunching</text>
+  <text class="sm" x="630" y="362">  2 buses &lt;200m for &gt;5 min</text>
+  <text class="sm" x="630" y="396">→ urbanpulse.incidents</text>
+  <text class="sm" x="630" y="420">→ 90-second signal adaptation</text>
+
+  <rect class="batch" x="615" y="460" width="250" height="270"/>
+  <text class="tb" x="630" y="486">BATCH LAYER — Apache Spark</text>
+  <text class="sm" x="630" y="506">Structured Streaming (micro-batch)</text>
+  <text class="t" x="630" y="538">• Ward energy: 15-min windows</text>
+  <text class="sm" x="630" y="556">  total_kwh, avg_pf, peak_voltage</text>
+  <text class="t" x="630" y="586">• AQI rolling avg (10 min/zone)</text>
+  <text class="sm" x="630" y="604">  ⋈ zone_profile → advisories</text>
+  <text class="t" x="630" y="634">• Weekly / monthly councillor</text>
+  <text class="sm" x="630" y="652">  &amp; state-govt report aggregates</text>
+  <text class="sm" x="630" y="686">→ ward_energy_summary topic</text>
+  <text class="sm" x="630" y="708">→ Parquet (ward_id / date)</text>
+
+  <!-- ================= STORAGE ================= -->
+  <rect class="layer" x="920" y="90" width="270" height="780"/>
+  <text class="layerlbl" x="945" y="118">4. Storage</text>
+
+  <rect class="store" x="945" y="140" width="220" height="95"/>
+  <text class="tb" x="960" y="166">Time-series sensors</text>
+  <text class="t" x="960" y="190">TimescaleDB / InfluxDB</text>
+  <text class="sm" x="960" y="210">signal + meter metrics,</text>
+  <text class="sm" x="960" y="226">auto down-sampling</text>
+
+  <rect class="store" x="945" y="250" width="220" height="95"/>
+  <text class="tb" x="960" y="276">Geospatial bus positions</text>
+  <text class="t" x="960" y="300">PostgreSQL + PostGIS</text>
+  <text class="sm" x="960" y="320">spatial index for</text>
+  <text class="sm" x="960" y="336">proximity / bunching</text>
+
+  <rect class="store" x="945" y="360" width="220" height="95"/>
+  <text class="tb" x="960" y="386">Historical AQI records</text>
+  <text class="t" x="960" y="410">Parquet data lake (MinIO)</text>
+  <text class="sm" x="960" y="430">cheap long-term,</text>
+  <text class="sm" x="960" y="446">trend analysis</text>
+
+  <rect class="store" x="945" y="470" width="220" height="95"/>
+  <text class="tb" x="960" y="496">Councillor aggregates</text>
+  <text class="t" x="960" y="520">PostgreSQL (relational)</text>
+  <text class="sm" x="960" y="540">BI-ready ward/zone</text>
+  <text class="sm" x="960" y="556">summary tables</text>
+
+  <rect class="box" x="945" y="585" width="220" height="80"/>
+  <text class="tb" x="960" y="610">On-prem / city servers</text>
+  <text class="sm" x="960" y="630">data sovereignty:</text>
+  <text class="sm" x="960" y="646">no data leaves the city</text>
+
+  <!-- ================= SERVING ================= -->
+  <rect class="layer" x="1220" y="90" width="230" height="780"/>
+  <text class="layerlbl" x="1245" y="118">5. Serving</text>
+
+  <rect class="serve" x="1245" y="140" width="180" height="110"/>
+  <text class="tb" x="1258" y="166">Live Dashboards</text>
+  <text class="sm" x="1258" y="188">admin operations</text>
+  <text class="sm" x="1258" y="206">picture; ward-officer</text>
+  <text class="sm" x="1258" y="224">accessible views</text>
+
+  <rect class="serve" x="1245" y="270" width="180" height="110"/>
+  <text class="tb" x="1258" y="296">Advisory APIs</text>
+  <text class="sm" x="1258" y="318">REST endpoints for</text>
+  <text class="sm" x="1258" y="336">incidents, health</text>
+  <text class="sm" x="1258" y="354">advisories, ETAs</text>
+
+  <rect class="serve" x="1245" y="400" width="180" height="110"/>
+  <text class="tb" x="1258" y="426">Signal Control</text>
+  <text class="sm" x="1258" y="448">adaptive timing</text>
+  <text class="sm" x="1258" y="466">commands within</text>
+  <text class="sm" x="1258" y="484">90s of detection</text>
+
+  <rect class="serve" x="1245" y="530" width="180" height="110"/>
+  <text class="tb" x="1258" y="556">Reports</text>
+  <text class="sm" x="1258" y="578">weekly/monthly PDFs</text>
+  <text class="sm" x="1258" y="596">for councillors &amp;</text>
+  <text class="sm" x="1258" y="614">state government</text>
+
+  <!-- ============ FLOW ARROWS ============ -->
+  <!-- sources -> kafka -->
+  <path class="ln" marker-end="url(#arrow)" d="M255,180 L335,170"/>
+  <path class="ln" marker-end="url(#arrow)" d="M255,285 L335,300"/>
+  <path class="ln" marker-end="url(#arrow)" d="M255,390 L335,330"/>
+  <path class="ln" marker-end="url(#arrow)" d="M255,495 L335,360"/>
+  <!-- kafka -> processing -->
+  <path class="ln" marker-end="url(#arrow)" d="M535,300 L615,280"/>
+  <path class="ln" marker-end="url(#arrow)" d="M535,360 L615,560"/>
+  <!-- processing -> storage -->
+  <path class="ln" marker-end="url(#arrow)" d="M865,290 L945,300"/>
+  <path class="ln" marker-end="url(#arrow)" d="M865,560 L945,400"/>
+  <path class="ln" marker-end="url(#arrow)" d="M865,600 L945,510"/>
+  <!-- storage -> serving -->
+  <path class="ln" marker-end="url(#arrow)" d="M1165,300 L1245,300"/>
+  <path class="ln" marker-end="url(#arrow)" d="M1165,520 L1245,560"/>
+  <!-- speed layer direct to serving (real-time path) -->
+  <path class="ln" stroke-dasharray="6,4" marker-end="url(#arrow)" d="M865,200 C1100,200 1100,440 1245,445"/>
+  <text class="sm" x="980" y="180" fill="#1565c0">real-time path: incidents → signal control / dashboards</text>
+
+</svg>
