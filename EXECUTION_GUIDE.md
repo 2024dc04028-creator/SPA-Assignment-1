@@ -1,13 +1,13 @@
-# UrbanPulse — Execution Guide (macOS + VS Code, no Homebrew)
+# UrbanPulse — Execution Guide
 
 This guide is written for a **beginner**. It tells you exactly what to install, what to
-type in a **Terminal**, and what to run from **VS Code** — with **no Homebrew anywhere**.
+type in a **Terminal**, and what to run from **VS Code**.
 Follow it top to bottom the first time. After setup, you only repeat Section 6.
 
 > Mental model: **Kafka runs inside Docker** (so you don't install Java just for Kafka).
 > **All the Python apps run on your Mac** in a VS Code terminal. Flink and Spark are the
 > only Python apps that *also* need a Java runtime — we install that with a normal `.pkg`
-> installer, not Homebrew.
+> installer.
 
 ---
 
@@ -16,19 +16,18 @@ Follow it top to bottom the first time. After setup, you only repeat Section 6.
 | Piece | Where it runs | How you start it |
 |---|---|---|
 | Kafka (3 brokers) + Zookeeper + Kafka-UI | Docker | one command |
-| Producers / consumers / enrichment / DLQ | Python on macOS | VS Code terminal |
+| Producers / consumers / enrichment / DLQ | Python | VS Code terminal |
 | Flink incident detection | Python (needs Java) | VS Code terminal |
 | Spark ward analytics | Python (needs Java) | VS Code terminal |
-| Dashboard API | Python (Flask) | VS Code terminal, open in browser |
+| Dashboard API | Streamlit | VS Code terminal, open in browser |
 
 ---
 
-## 1. Install the tools (one-time, all without Homebrew)
+## 1. Install the tools (one-time)
 
 ### 1a. Docker Desktop (runs Kafka for you)
 1. Go to <https://www.docker.com/products/docker-desktop/>.
-2. Download **Docker Desktop for Mac** — pick **Apple Silicon** (M1/M2/M3) or **Intel**
-   to match your Mac. (Apple menu  > About This Mac tells you which chip you have.)
+2. Download **Docker Desktop for Mac** — pick **Apple Silicon** (M1/M2/M3) or **Intel**.
 3. Open the downloaded `.dmg` and drag **Docker** into **Applications**.
 4. Launch Docker Desktop and let it finish starting (the whale icon in the menu bar
    stops animating). Accept the default settings.
@@ -39,7 +38,7 @@ Follow it top to bottom the first time. After setup, you only repeat Section 6.
    ```
    Both should print a version number.
 
-### 1b. Python 3.11 (from python.org — NOT Homebrew)
+### 1b. Python 3.11 
 PyFlink does **not** support Python 3.12+ yet, so we use **3.11**.
 1. Go to <https://www.python.org/downloads/macos/>.
 2. Download the latest **Python 3.11.x** "macOS 64-bit universal2 installer" (`.pkg`).
@@ -100,7 +99,7 @@ With `(.venv)` active:
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
-This installs `kafka-python`, `apache-flink`, `pyspark`, `flask`, and `pandas`.
+This installs `kafka-python`, `apache-flink`, `pyspark`, `streamlit`, and `pandas`.
 
 > **If `apache-flink` fails to install:** you are almost certainly not on Python 3.11.
 > Check `python --version` inside the venv. Recreate the venv with `python3.11` (Section 2).
@@ -110,7 +109,7 @@ This installs `kafka-python`, `apache-flink`, `pyspark`, `flask`, and `pandas`.
 
 ### Test the install worked (no Kafka needed yet)
 ```bash
-python -c "import kafka, flask, pandas; print('core OK')"
+python -c "import kafka, streamlit, pandas; print('core OK')"
 python -c "import pyflink; print('flink OK')"
 python -c "import pyspark; print('spark OK')"
 ```
@@ -236,7 +235,7 @@ python spark/aqi_health_advisory.py     # → health_advisories topic (Update mo
 Parquet output appears under `output/ward_energy_parquet/` partitioned by
 `ward_id`/`date`.
 
-### Serving layer (nice for the video walkthrough)
+### Serving layer
 ```bash
 streamlit run streamlit_app.py
 ```
