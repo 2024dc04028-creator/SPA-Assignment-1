@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# Flink connector jar (large; download per EXECUTION_GUIDE.md)
+flink/lib/*.jar
+
+# Spark / streaming runtime output
+output/checkpoints/
+output/ward_energy_parquet/
+spark-warehouse/
+metastore_db/
+derby.log
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
