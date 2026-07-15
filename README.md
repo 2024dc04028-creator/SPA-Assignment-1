@@ -3,7 +3,7 @@
 **Real-Time Urban Operations Intelligence & Smart Traffic Management Platform**
 for *MetroConnect* (fictitious 4.2M-population tier-1 city) — Smart Cities Mission.
 
-A beginner-friendly, all-Python streaming data-engineering project built on **Apache Kafka + Zookeeper**, **Apache Flink (PyFlink)**, **Apache Spark (PySpark)**, and **Streamlit**, designed to run on **macOS with VS Code and no Homebrew**.
+A beginner-friendly, all-Python streaming data-engineering project built on **Apache Kafka + Zookeeper**, **Apache Flink (PyFlink)**, **Apache Spark (PySpark)**, and **Streamlit**.
 
 > **New here? Read [`EXECUTION_GUIDE.md`](EXECUTION_GUIDE.md) first.** It walks you through every installation and execution step. The complete project documentation is available in **docs/UrbanPulse_Report.pdf**.
 
