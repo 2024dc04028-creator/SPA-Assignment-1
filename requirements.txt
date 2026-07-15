@@ -1,0 +1,26 @@
+# UrbanPulse Python dependencies
+# -------------------------------
+# IMPORTANT: use Python 3.11. PyFlink does not yet support 3.12+, and
+# kafka-python is most stable on 3.11. See EXECUTION_GUIDE.md.
+#
+# Install everything with:   pip install -r requirements.txt
+# (You can also install in stages — Kafka first, then Flink, then Spark.)
+
+# --- Kafka client (producers, consumers, admin, enrichment, DLQ) ---
+kafka-python==2.0.2
+# If you are forced onto Python 3.12 and kafka-python errors on import,
+# comment the line above and use this maintained fork instead (same 'kafka' import):
+# kafka-python-ng==2.2.3
+
+# --- Apache Flink (PyFlink) — Task C Part I.  Requires Java 11. ---
+apache-flink==1.19.1
+
+# --- Apache Spark (PySpark) — Task C Part II. Requires Java 8/11/17. ---
+pyspark==3.5.1
+
+# --- Serving layer API ---
+streamlit>=1.38.0
+streamlit-autorefresh
+
+# --- handy for any local data inspection ---
+pandas==2.2.2
