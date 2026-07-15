@@ -1,0 +1,95 @@
+# =============================================================================
+# UrbanPulse — 3-broker Kafka cluster + Zookeeper
+# =============================================================================
+# This file starts FOUR containers: 1 Zookeeper + 3 Kafka brokers.
+# You will run all of this with ONE command:  docker compose up -d
+#
+# Why Zookeeper? The assignment explicitly asks for it. Confluent's 7.x images
+# still support the classic Zookeeper mode (newer "KRaft" mode drops it), so we
+# stay in Zookeeper mode on purpose.
+#
+# The LISTENER settings below are the part beginners always get wrong, so here
+# is the idea in plain words:
+#   - Containers talk to EACH OTHER using the name "kafkaN" on port 19092.
+#   - YOUR Mac (the host) talks to them using "localhost" on 9092/9093/9094.
+# We declare two listeners per broker so both kinds of traffic work.
+# =============================================================================
+
+services:
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: urbanpulse-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka1:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: urbanpulse-kafka1
+    depends_on: [zookeeper]
+    ports:
+      - "9092:9092"          # <-- your Mac reaches broker 1 at localhost:9092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:19092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:19092,EXTERNAL://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # With 3 brokers we keep 3 copies of the internal topics for safety:
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  kafka2:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: urbanpulse-kafka2
+    depends_on: [zookeeper]
+    ports:
+      - "9093:9093"          # <-- your Mac reaches broker 2 at localhost:9093
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:19092,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka2:19092,EXTERNAL://localhost:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  kafka3:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: urbanpulse-kafka3
+    depends_on: [zookeeper]
+    ports:
+      - "9094:9094"          # <-- your Mac reaches broker 3 at localhost:9094
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:19092,EXTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka3:19092,EXTERNAL://localhost:9094
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  # OPTIONAL but very beginner-friendly: a web UI to SEE your topics & messages.
+  # Open http://localhost:8080 in your browser after "docker compose up -d".
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: urbanpulse-kafka-ui
+    depends_on: [kafka1, kafka2, kafka3]
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: urbanpulse
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka1:19092,kafka2:19092,kafka3:19092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
