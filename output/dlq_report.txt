@@ -1,0 +1,12 @@
+==================================================
+UrbanPulse — DLQ Report
+Generated : 2026-06-07T13:38:31
+Window    : 60 seconds
+Total bad records: 29
+--------------------------------------------------
+Error type distribution:
+   NULL_AQI               29  (100.0%)
+--------------------------------------------------
+By source topic:
+   urbanpulse.air_quality           29
+==================================================
